@@ -510,14 +510,20 @@
         let signaturePad = null;
 
         window.onload = function() {
-            populateExtinguisherDropdown();
-            loadStorage();
-            renderChecklistTable();
-            updateDashboard();
-            renderHistory();
-            initSignaturePad();
-            checkUrlParams();
-        };
+    populateExtinguisherDropdown();
+    loadStorage();
+    renderChecklistTable();
+    updateDashboard();
+    renderHistory();
+    initSignaturePad();
+    checkUrlParams();
+    
+    // Limpia la URL de parámetros QR tras procesarlos para evitar bucles al recargar
+    if (window.history.replaceState) {
+        const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({path: cleanUrl}, '', cleanUrl);
+    }
+};
 
         function populateExtinguisherDropdown() {
             const select = document.getElementById('ext-id');
@@ -531,34 +537,33 @@
         }
 
         function loadStorage() {
-            const data = localStorage.getItem('sst_extinguisher_data');
-            if (data) {
-                inspections = JSON.parse(data);
-            } else {
-                inspections = masterExtinguishers.map(e => ({
-                    id: e.id, location: e.ubicacion, type: e.tipo || "ABC", sub: e.sub || "Multi", capacity: e.cap || "20 lb", height: e.alt || "1.5 m", 
-                    vencMes: e.mes, vencAno: e.ano,
-                    status: "OK", expiryDate: `${e.ano}-05-15`, lastInspection: "2026-02-10", inspector: "Paula Patiño",
-                    checklist: checklistItems.reduce((acc, curr) => { acc[curr] = { result: 'Cumple', obs: 'OK' }; return acc; }, {}),
-                    photos: [], signature: null
-                }));
-                saveStorage();
-            }
-        }
-
-        function saveStorage() {
-            localStorage.setItem('sst_extinguisher_data', JSON.stringify(inspections));
-        }
-
-        function showSection(sectionId) {
-            document.querySelectorAll('.app-section').forEach(el => el.classList.add('d-none'));
-            document.getElementById(`section-${sectionId}`).classList.remove('d-none');
-            if (sectionId === 'history') renderHistory();
-            if (sectionId === 'dashboard') updateDashboard();
-            if (sectionId === 'inspection-form') {
-                setTimeout(resizeCanvas, 200);
-            }
-        }
+    const data = localStorage.getItem('sst_extinguisher_data');
+    if (data) {
+        inspections = JSON.parse(data);
+    } else {
+        inspections = masterExtinguishers.map(e => ({
+            id: e.id, 
+            location: e.ubicacion, 
+            type: e.tipo || "ABC", 
+            sub: e.sub || "Multi", 
+            capacity: e.cap || "20 lb", 
+            height: e.alt || "1.5 m", 
+            vencMes: e.mes, 
+            vencAno: e.ano,
+            status: "OK", 
+            expiryDate: `${e.ano}-05-15`, 
+            lastInspection: new Date().toISOString().split('T')[0], 
+            inspector: "Paula Patiño",
+            checklist: checklistItems.reduce((acc, curr) => { 
+                acc[curr] = { result: 'Cumple', obs: 'Sin observaciones' }; 
+                return acc; 
+            }, {}),
+            photos: [], 
+            signature: null
+        }));
+        saveStorage();
+    }
+}
 
         function renderChecklistTable() {
             const tbody = document.getElementById('checklist-tbody');
@@ -690,13 +695,15 @@
             const inspector = document.getElementById('ext-inspector').value;
 
             const checklistData = {};
-            const results = document.querySelectorAll('.check-result');
-            const obss = document.querySelectorAll('.check-obs');
-
-            results.forEach((resEl, i) => {
-                const itemKey = resEl.getAttribute('data-item');
-                checklistData[itemKey] = { result: resEl.value, obs: obss[i].value || 'Sin observaciones' };
-            });
+checklistItems.forEach(item => {
+    const selectEl = document.querySelector(`.check-result[data-item="${item}"]`);
+    const inputEl = document.querySelector(`.check-obs[data-item="${item}"]`);
+    
+    checklistData[item] = {
+        result: selectEl ? selectEl.value : 'Cumple',
+        obs: inputEl && inputEl.value.trim() !== '' ? inputEl.value.trim() : 'Sin observaciones'
+    };
+});
 
             const newRecord = {
                 id: extId, location, type, sub, capacity, height, vencMes, vencAno, status, expiryDate: expiry,
