@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Etiquetas QR - Extintores SST</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; color: #333; }
+        h1 { text-align: center; color: #1b5e20; margin-bottom: 5px; }
+        p.subtitle { text-align: center; color: #555; margin-top: 0; margin-bottom: 20px; }
+        .no-print { text-align: center; margin-bottom: 30px; }
+        .btn-print { background-color: #1b5e20; color: white; border: none; padding: 12px 25px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-print:hover { background-color: #2e7d32; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; max-width: 1200px; margin: 0 auto; }
+        .etiqueta { background: white; border: 2px dashed #1b5e20; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); page-break-inside: avoid; }
+        .etiqueta h3 { margin: 0 0 5px 0; color: #1b5e20; font-size: 18px; }
+        .etiqueta .ubicacion { font-weight: bold; font-size: 14px; color: #333; margin-bottom: 10px; min-height: 35px; display: flex; align-items: center; justify-content: center; }
+        .etiqueta img { width: 140px; height: 140px; margin: 5px 0; }
+        .etiqueta .tipo { font-size: 12px; color: #666; margin-top: 5px; }
+        @media print { .no-print { display: none; } body { background: white; padding: 0; } .grid-container { gap: 10px; } .etiqueta { border: 1px solid #999; box-shadow: none; } }
+    </style>
+</head>
+<body>
+
+    <h1>ETIQUETAS QR - CONTROL DE EXTINTORES</h1>
+    <p class="subtitle">Escanea estos códigos con la cámara del celular para abrir la ficha de inspección.</p>
+
+    <div class="no-print">
+        <button class="btn-print" onclick="window.print()">🖨️ Imprimir Etiquetas</button>
+    </div>
+
+    <div class="grid-container" id="etiquetas-grid"></div>
+
+    <script>
+        // Enlace exacto, limpio y verificado de tu GitHub Pages
+        const BASE_URL = "https://luceritovasa2006-maker.github.io/EXTINTORE./";
+
+        const masterExtinguishers = [
+            { id: 1, ubicacion: "Porteria", tipo: "ABC - 20 lb" },
+            { id: 2, ubicacion: "Banos Vestieres", tipo: "ABC - 20 lb" },
+            { id: 3, ubicacion: "Oficina Adm", tipo: "BC (CO2) - 10 lb" },
+            { id: 4, ubicacion: "Entrada Alm. Gen.", tipo: "ABC - 20 lb" },
+            { id: 5, ubicacion: "Entrada Alm. Plg.", tipo: "ABC - 20 lb" },
+            { id: 6, ubicacion: "Cuarto Frio N-5", tipo: "ABC - 20 lb" },
+            { id: 7, ubicacion: "Pasillo Alm. Ge. Carton", tipo: "ABC - 20 lb" },
+            { id: 8, ubicacion: "Armado de carton-piso 2", tipo: "ABC - 20 lb" },
+            { id: 9, ubicacion: "Oficina Posco", tipo: "BC (CO2) - 10 lb" },
+            { id: 10, ubicacion: "Pegado de Stickers", tipo: "ABC - 20 lb" },
+            { id: 11, ubicacion: "Escalera Poscosecha", tipo: "ABC - 20 lb" },
+            { id: 12, ubicacion: "Banos Posco", tipo: "ABC - 20 lb" },
+            { id: 13, ubicacion: "Salida emergencia N° 2", tipo: "ABC - 20 lb" },
+            { id: 14, ubicacion: "Cuarto Frio N-5", tipo: "ABC - 20 lb" },
+            { id: 15, ubicacion: "Cuarto Frio N-7", tipo: "ABC - 20 lb" },
+            { id: 16, ubicacion: "Cuarto Frio Verdes Y Despacho", tipo: "ABC - 20 lb" },
+            { id: 17, ubicacion: "Hornos", tipo: "ABC - 20 lb" },
+            { id: 18, ubicacion: "Cocina", tipo: "PQS Rodante - 2.5 gl" },
+            { id: 19, ubicacion: "Botellones de agua", tipo: "ABC - 20 lb" },
+            { id: 20, ubicacion: "Alm. Fertilizantes", tipo: "ABC - 20 lb" },
+            { id: 21, ubicacion: "Satelite Bom. Mirfe", tipo: "ABC - 150 lb" },
+            { id: 22, ubicacion: "Entrada Bom. Mirfe", tipo: "ABC - 20 lb" },
+            { id: 23, ubicacion: "Satelite en deposito de ACPM", tipo: "ABC - 150 lb" },
+            { id: 24, ubicacion: "Torre aireacion nueva", tipo: "ABC - 20 lb" },
+            { id: 25, ubicacion: "Respel", tipo: "ABC - 20 lb" },
+            { id: 26, ubicacion: "Bomba Fum. 1", tipo: "ABC - 20 lb" },
+            { id: 27, ubicacion: "Bomba Fum. 2", tipo: "ABC - 20 lb" },
+            { id: "028", ubicacion: "Comedor BQ 1", tipo: "ABC - 10 lb" },
+            { id: "029", ubicacion: "Bomba Fum. 3", tipo: "ABC - 20 lb" },
+            { id: "030", ubicacion: "Bomba Fum. 4", tipo: "ABC - 20 lb" },
+            { id: "031", ubicacion: "Bomba Fum. 5", tipo: "ABC - 30 lb" },
+            { id: "032", ubicacion: "Satelite Bloque 27", tipo: "ABC - 150 lb" },
+            { id: "033", ubicacion: "Equi. Soldadura Taller 1", tipo: "ABC - 10 lb" },
+            { id: "034", ubicacion: "Equi. Soldadura Taller 2", tipo: "ABC - 10 lb" },
+            { id: "035", ubicacion: "Equi. Soldadura Taller 3", tipo: "ABC - 10 lb" },
+            { id: "036", ubicacion: "Taller Mtto 2", tipo: "ABC - 10 lb" },
+            { id: "037", ubicacion: "Taller Mtto", tipo: "ABC - 20 lb" },
+            { id: "038", ubicacion: "Cuarto Combustibles", tipo: "ABC - 10 lb" },
+            { id: "039", ubicacion: "Recepcion", tipo: "BC (CO2) - 10 lb" },
+            { id: "040", ubicacion: "Oficina mirfe", tipo: "BC (CO2) - 10 lb" },
+            { id: "041", ubicacion: "Planta electrica", tipo: "ABC - 20 lb" },
+            { id: "042", ubicacion: "Escaleras externas cuarto armado carton", tipo: "BC (CO2) - 10 lb" },
+            { id: "043", ubicacion: "Oficina SST", tipo: "ABC - 10 lb" },
+            { id: "044", ubicacion: "Oficinas Atencion", tipo: "BC (CO2) - 10 lb" }
+        ];
+
+        const contenedor = document.getElementById('etiquetas-grid');
+
+        masterExtinguishers.forEach(ext => {
+            const numStr = String(ext.id).padStart(3, '0');
+            const enlaceWeb = `${BASE_URL}?id=${numStr}`;
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(enlaceWeb)}`;
+
+            const tarjeta = document.createElement('div');
+            tarjeta.className = 'etiqueta';
+            tarjeta.innerHTML = `
+                <h3>EXTINTOR #${numStr}</h3>
+                <div class="ubicacion">${ext.ubicacion}</div>
+                <img src="${qrUrl}" alt="QR Extintor ${numStr}">
+                <div class="tipo">${ext.tipo}</div>
+            `;
+            contenedor.appendChild(tarjeta);
+        });
+    </script>
+</body>
+</html>
