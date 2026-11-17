@@ -537,20 +537,21 @@
         }
 
         function loadStorage() {
-            const data = localStorage.getItem('sst_extinguisher_data');
-            if (data) {
-                inspections = JSON.parse(data);
-            } else {
-                inspections = masterExtinguishers.map(e => ({
-                    id: e.id, location: e.ubicacion, type: e.tipo || "ABC", sub: e.sub || "Multi", capacity: e.cap || "20 lb", height: e.alt || "1.5 m", 
-                    vencMes: e.mes, vencAno: e.ano,
-                    status: "OK", expiryDate: `${e.ano}-05-15`, lastInspection: "2026-02-10", inspector: "Paula Patiño",
-                    checklist: checklistItems.reduce((acc, curr) => { acc[curr] = { result: 'Cumple', obs: 'OK' }; return acc; }, {}),
-                    photos: [], signature: null
-                }));
-                saveStorage();
-            }
-        }
+    const data = localStorage.getItem('sst_extinguisher_data');
+    if (data) {
+        inspections = JSON.parse(data);
+    } else {
+        // Solo si no hay nada guardado previamente, creamos la estructura inicial
+        inspections = masterExtinguishers.map(e => ({
+            id: e.id, location: e.ubicacion, type: e.tipo || "ABC", sub: e.sub || "Multi", capacity: e.cap || "20 lb", height: e.alt || "1.5 m", 
+            vencMes: e.mes, vencAno: e.ano,
+            status: "OK", expiryDate: `${e.ano}-05-15`, lastInspection: "", inspector: "",
+            checklist: checklistItems.reduce((acc, curr) => { acc[curr] = { result: 'Cumple', obs: 'OK' }; return acc; }, {}),
+            photos: [], signature: null
+        }));
+        saveStorage();
+    }
+}
 
         function saveStorage() {
             localStorage.setItem('sst_extinguisher_data', JSON.stringify(inspections));
