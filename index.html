@@ -537,33 +537,34 @@
         }
 
         function loadStorage() {
-    const data = localStorage.getItem('sst_extinguisher_data');
-    if (data) {
-        inspections = JSON.parse(data);
-    } else {
-        inspections = masterExtinguishers.map(e => ({
-            id: e.id, 
-            location: e.ubicacion, 
-            type: e.tipo || "ABC", 
-            sub: e.sub || "Multi", 
-            capacity: e.cap || "20 lb", 
-            height: e.alt || "1.5 m", 
-            vencMes: e.mes, 
-            vencAno: e.ano,
-            status: "OK", 
-            expiryDate: `${e.ano}-05-15`, 
-            lastInspection: new Date().toISOString().split('T')[0], 
-            inspector: "Paula Patiño",
-            checklist: checklistItems.reduce((acc, curr) => { 
-                acc[curr] = { result: 'Cumple', obs: 'Sin observaciones' }; 
-                return acc; 
-            }, {}),
-            photos: [], 
-            signature: null
-        }));
-        saveStorage();
-    }
-}
+            const data = localStorage.getItem('sst_extinguisher_data');
+            if (data) {
+                inspections = JSON.parse(data);
+            } else {
+                inspections = masterExtinguishers.map(e => ({
+                    id: e.id, location: e.ubicacion, type: e.tipo || "ABC", sub: e.sub || "Multi", capacity: e.cap || "20 lb", height: e.alt || "1.5 m", 
+                    vencMes: e.mes, vencAno: e.ano,
+                    status: "OK", expiryDate: `${e.ano}-05-15`, lastInspection: "2026-02-10", inspector: "Paula Patiño",
+                    checklist: checklistItems.reduce((acc, curr) => { acc[curr] = { result: 'Cumple', obs: 'OK' }; return acc; }, {}),
+                    photos: [], signature: null
+                }));
+                saveStorage();
+            }
+        }
+
+        function saveStorage() {
+            localStorage.setItem('sst_extinguisher_data', JSON.stringify(inspections));
+        }
+
+        function showSection(sectionId) {
+            document.querySelectorAll('.app-section').forEach(el => el.classList.add('d-none'));
+            document.getElementById(`section-${sectionId}`).classList.remove('d-none');
+            if (sectionId === 'history') renderHistory();
+            if (sectionId === 'dashboard') updateDashboard();
+            if (sectionId === 'inspection-form') {
+                setTimeout(resizeCanvas, 200);
+            }
+        }
 
         function renderChecklistTable() {
             const tbody = document.getElementById('checklist-tbody');
