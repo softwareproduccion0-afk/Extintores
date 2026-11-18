@@ -1219,18 +1219,16 @@ async function exportToExcel() {
                     currentRow += 2;
                 });
 
-                // ========================================================
-                // GENERAR Y DESCARGAR ARCHIVO
-                // ========================================================
-                const buffer = await workbook.xlsx.writeBuffer();
-                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                const fileName = `Reporte_Extintores_FalconFarms_${new Date().toISOString().split('T')[0]}.xlsx`;
-                saveAs(blob, fileName);
-            } catch (err) {
-                console.error(err);
-                alert('Ocurrió un error al generar el archivo Excel: ' + err.message);
-            }
-        }
+                // Descargar el archivo Excel (.xlsx) final
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(blob, `Reporte_Extintores_FalconFarms_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    } catch (err) {
+        console.error(err);
+        alert('Ocurrió un error al generar el archivo Excel: ' + err.message);
+    }
+}
     </script>
 </body>
 </html>
