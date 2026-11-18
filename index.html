@@ -1105,8 +1105,8 @@ async function exportToExcel() {
                         row.getCell(2).value = item.id || '';
                         row.getCell(3).value = item.location || '';
                         row.getCell(4).value = elementName;
-                        row.getCell(5).value = val.result || 'Cumple';
-                        row.getCell(6).value = val.obs || 'Sin observaciones';
+                        row.getCell(5).value = val.result || '';
+                        row.getCell(6).value = val.obs || '';
 
                         // Colorear resultado (Verde si cumple, Rojo si no cumple)
                         const resVal = val.result || 'Cumple';
