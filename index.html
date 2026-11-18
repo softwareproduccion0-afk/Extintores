@@ -554,8 +554,12 @@
 }
 
         function saveStorage() {
-            localStorage.setItem('sst_extinguisher_data', JSON.stringify(inspections));
-        }
+    try {
+        localStorage.setItem('sst_extinguisher_data', JSON.stringify(inspections));
+    } catch (e) {
+        console.warn("Memoria local del celular llena (posiblemente por fotos). Los datos siguen activos en memoria para exportar a Excel.", e);
+    }
+}
 
         function showSection(sectionId) {
             document.querySelectorAll('.app-section').forEach(el => el.classList.add('d-none'));
@@ -955,271 +959,280 @@
             return { extension: ext, base64: match[2] };
         }
 async function exportToExcel() {
-            try {
-                const savedData = localStorage.getItem('sst_extinguisher_data');
-                const currentInspections = savedData ? JSON.parse(savedData) : inspections;
+    try {
+        // Recuperar y parsear de forma segura los datos del localStorage
+        let savedData = [];
+        try {
+            const rawData = localStorage.getItem('sst_extinguisher_data');
+            if (rawData) {
+                savedData = JSON.parse(rawData);
+            }
+        } catch (e) {
+            console.warn("No se pudo leer el localStorage, usando memoria actual:", e);
+        }
 
-                if (!currentInspections || currentInspections.length === 0) {
-                    alert('No hay registros de inspección para exportar.');
-                    return;
+        // Priorizar el arreglo en memoria actual si tiene elementos, de lo contrario usar localStorage
+        const currentInspections = (inspections && inspections.length > 0) 
+            ? inspections 
+            : (Array.isArray(savedData) && savedData.length > 0 ? savedData : []);
+
+        if (!currentInspections || currentInspections.length === 0) {
+            alert('No hay registros de inspección para exportar.');
+            return;
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'Sistema SST - Control e Inspección de Extintores';
+        workbook.created = new Date();
+
+        const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B5E20' } };
+        const thinGrayBorder = {
+            top: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+            left: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+            bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+            right: { style: 'thin', color: { argb: 'FFDDDDDD' } }
+        };
+
+        // ========================================================
+        // HOJA 1: RESUMEN EJECUTIVO DE EXTINTORES
+        // ========================================================
+        const sheet = workbook.addWorksheet('Resumen Extintores', {
+            pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+        });
+
+        const logoId = workbook.addImage({ base64: COMPANY_LOGO_BASE64, extension: 'png' });
+        sheet.addImage(logoId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 80, height: 80 } });
+
+        sheet.mergeCells('C1:L3');
+        const titleCell = sheet.getCell('C1');
+        titleCell.value = `${COMPANY_NAME.toUpperCase()}\nSISTEMA DE CONTROL E INSPECCIÓN DE EXTINTORES - SST`;
+        titleCell.font = { size: 16, bold: true, color: { argb: 'FF1B5E20' }, name: 'Calibri' };
+        titleCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+        sheet.mergeCells('C4:L4');
+        const subtitleCell = sheet.getCell('C4');
+        subtitleCell.value = `Reporte generado el ${new Date().toLocaleDateString('es-CO')} a las ${new Date().toLocaleTimeString('es-CO')}  —  Total de registros: ${currentInspections.length}`;
+        subtitleCell.font = { size: 10, italic: true, color: { argb: 'FF666666' } };
+        subtitleCell.alignment = { horizontal: 'center' };
+
+        const headerRowIndex = 6;
+        const headers = [
+            "Fecha Inspección", "ID Extintor", "Ubicación", "Tipo Agente", 
+            "Subtipo", "Capacidad", "Altura", "Año Vencimiento", 
+            "Mes Vencimiento", "Estado", "Inspector", "N° Fotos", "Firma Registrada"
+        ];
+
+        const headerRow = sheet.getRow(headerRowIndex);
+        headers.forEach((h, i) => { headerRow.getCell(i + 1).value = h; });
+        headerRow.eachCell(cell => {
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = headerFill;
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            cell.border = thinGrayBorder;
+        });
+        headerRow.height = 28;
+
+        sheet.columns = [
+            { width: 16 }, { width: 14 }, { width: 25 }, { width: 22 },
+            { width: 14 }, { width: 14 }, { width: 14 }, { width: 16 },
+            { width: 16 }, { width: 18 }, { width: 20 }, { width: 12 }, { width: 16 }
+        ];
+
+        currentInspections.forEach((item, idx) => {
+            const rowIndex = headerRowIndex + 1 + idx;
+            const row = sheet.getRow(rowIndex);
+            
+            row.getCell(1).value = item.lastInspection || '';
+            row.getCell(2).value = item.id || '';
+            row.getCell(3).value = item.location || '';
+            row.getCell(4).value = item.type || '';
+            row.getCell(5).value = item.sub || '';
+            row.getCell(6).value = item.capacity || '';
+            row.getCell(7).value = item.height || '';
+            row.getCell(8).value = item.vencAno || '';
+            row.getCell(9).value = item.vencMes || '';
+            row.getCell(10).value = item.status || '';
+            row.getCell(11).value = item.inspector || '';
+            row.getCell(12).value = (item.photos || []).length;
+            row.getCell(13).value = item.signature ? 'Sí' : 'No';
+
+            let fillColor = 'FFC8E6C9';
+            if (item.status === 'Próximo a Vencer') fillColor = 'FFFFE0B2';
+            if (item.status === 'Inoperativo') fillColor = 'FFFFCDD2';
+            
+            row.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+            row.getCell(10).font = { bold: true };
+
+            if (idx % 2 === 1) {
+                row.eachCell({ includeEmpty: true }, cell => {
+                    if (!cell.fill || cell.fill.fgColor.argb === undefined) {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
+                    }
+                });
+            }
+
+            row.eachCell(cell => {
+                cell.border = thinGrayBorder;
+                cell.alignment = { vertical: 'middle' };
+            });
+        });
+
+        sheet.autoFilter = { from: { row: headerRowIndex, column: 1 }, to: { row: headerRowIndex, column: headers.length } };
+        sheet.views = [{ state: 'frozen', ySplit: headerRowIndex }];
+
+        // ========================================================
+        // HOJA 2: DETALLE DE CHECKLIST SST (12 PUNTOS DE CONTROL)
+        // ========================================================
+        const sheetChecklist = workbook.addWorksheet('Detalle Checklist SST', {
+            pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+        });
+
+        sheetChecklist.columns = [
+            { width: 15 }, { width: 14 }, { width: 22 }, 
+            { width: 32 }, { width: 16 }, { width: 45 }
+        ];
+
+        const logoIdCheck = workbook.addImage({ base64: COMPANY_LOGO_BASE64, extension: 'png' });
+        sheetChecklist.addImage(logoIdCheck, { tl: { col: 0.1, row: 0.1 }, ext: { width: 65, height: 65 } });
+
+        sheetChecklist.mergeCells('C1:F3');
+        const titleCheck = sheetChecklist.getCell('C1');
+        titleCheck.value = `DETALLE DE LISTA DE CHEQUEO (12 PUNTOS SST)\n${COMPANY_NAME.toUpperCase()}`;
+        titleCheck.font = { size: 14, bold: true, color: { argb: 'FF1B5E20' } };
+        titleCheck.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+        const checkHeaderRowIdx = 5;
+        const checkHeaders = ["Fecha", "ID Extintor", "Ubicación", "Elemento Verificado", "Resultado", "Observación Detallada"];
+        const checkHeaderRow = sheetChecklist.getRow(checkHeaderRowIdx);
+        checkHeaders.forEach((h, i) => { checkHeaderRow.getCell(i + 1).value = h; });
+        checkHeaderRow.eachCell(cell => {
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = headerFill;
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = thinGrayBorder;
+        });
+        checkHeaderRow.height = 26;
+
+        let currentCheckRow = checkHeaderRowIdx + 1;
+        currentInspections.forEach((item, itemIdx) => {
+            const checklistEntries = item.checklist || {};
+            for (const [elementName, val] of Object.entries(checklistEntries)) {
+                const row = sheetChecklist.getRow(currentCheckRow);
+                row.getCell(1).value = item.lastInspection || '';
+                row.getCell(2).value = item.id || '';
+                row.getCell(3).value = item.location || '';
+                row.getCell(4).value = elementName;
+                row.getCell(5).value = val.result || '';
+                row.getCell(6).value = val.obs || '';
+
+                const resVal = val.result || 'Cumple';
+                let resColor = 'FFC8E6C9';
+                let fontColor = 'FF1B5E20';
+                if (resVal === 'No Cumple') {
+                    resColor = 'FFFFCDD2';
+                    fontColor = 'FFC62828';
+                } else if (resVal === 'N/A') {
+                    resColor = 'FFE0E0E0';
+                    fontColor = 'FF666666';
                 }
 
-                const workbook = new ExcelJS.Workbook();
-                workbook.creator = 'Sistema SST - Control e Inspección de Extintores';
-                workbook.created = new Date();
+                row.getCell(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: resColor } };
+                row.getCell(5).font = { bold: true, color: { argb: fontColor } };
+                row.getCell(5).alignment = { horizontal: 'center' };
 
-                const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B5E20' } };
-                const subHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E7D32' } };
-                const thinGrayBorder = {
-                    top: { style: 'thin', color: { argb: 'FFDDDDDD' } },
-                    left: { style: 'thin', color: { argb: 'FFDDDDDD' } },
-                    bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
-                    right: { style: 'thin', color: { argb: 'FFDDDDDD' } }
-                };
-
-                // ========================================================
-                // HOJA 1: RESUMEN EJECUTIVO DE EXTINTORES
-                // ========================================================
-                const sheet = workbook.addWorksheet('Resumen Extintores', {
-                    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
-                });
-
-                const logoId = workbook.addImage({ base64: COMPANY_LOGO_BASE64, extension: 'png' });
-                sheet.addImage(logoId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 80, height: 80 } });
-
-                sheet.mergeCells('C1:L3');
-                const titleCell = sheet.getCell('C1');
-                titleCell.value = `${COMPANY_NAME.toUpperCase()}\nSISTEMA DE CONTROL E INSPECCIÓN DE EXTINTORES - SST`;
-                titleCell.font = { size: 16, bold: true, color: { argb: 'FF1B5E20' }, name: 'Calibri' };
-                titleCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-
-                sheet.mergeCells('C4:L4');
-                const subtitleCell = sheet.getCell('C4');
-                subtitleCell.value = `Reporte generado el ${new Date().toLocaleDateString('es-CO')} a las ${new Date().toLocaleTimeString('es-CO')}  —  Total de registros: ${currentInspections.length}`;
-                subtitleCell.font = { size: 10, italic: true, color: { argb: 'FF666666' } };
-                subtitleCell.alignment = { horizontal: 'center' };
-
-                const headerRowIndex = 6;
-                const headers = [
-                    "Fecha Inspección", "ID Extintor", "Ubicación", "Tipo Agente", 
-                    "Subtipo", "Capacidad", "Altura", "Año Vencimiento", 
-                    "Mes Vencimiento", "Estado", "Inspector", "N° Fotos", "Firma Registrada"
-                ];
-
-                const headerRow = sheet.getRow(headerRowIndex);
-                headers.forEach((h, i) => { headerRow.getCell(i + 1).value = h; });
-                headerRow.eachCell(cell => {
-                    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                    cell.fill = headerFill;
-                    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-                    cell.border = thinGrayBorder;
-                });
-                headerRow.height = 28;
-
-                currentInspections.forEach((item, idx) => {
-                    const rowIndex = headerRowIndex + 1 + idx;
-                    const row = sheet.getRow(rowIndex);
-                    
-                    row.getCell(1).value = item.lastInspection || '';
-                    row.getCell(2).value = item.id || '';
-                    row.getCell(3).value = item.location || '';
-                    row.getCell(4).value = item.type || '';
-                    row.getCell(5).value = item.sub || '';
-                    row.getCell(6).value = item.capacity || '';
-                    row.getCell(7).value = item.height || '';
-                    row.getCell(8).value = item.vencAno || '';
-                    row.getCell(9).value = item.vencMes || '';
-                    row.getCell(10).value = item.status || '';
-                    row.getCell(11).value = item.inspector || '';
-                    row.getCell(12).value = (item.photos || []).length;
-                    row.getCell(13).value = item.signature ? 'Sí' : 'No';
-
-                    let fillColor = 'FFC8E6C9';
-                    if (item.status === 'Próximo a Vencer') fillColor = 'FFFFE0B2';
-                    if (item.status === 'Inoperativo') fillColor = 'FFFFCDD2';
-                    
-                    row.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
-                    row.getCell(10).font = { bold: true };
-
-                    if (idx % 2 === 1) {
-                        row.eachCell({ includeEmpty: true }, cell => {
-                            if (!cell.fill || cell.fill.fgColor.argb === undefined) {
-                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
-                            }
-                        });
-                    }
-
-                    row.eachCell(cell => {
-                        cell.border = thinGrayBorder;
-                        cell.alignment = { vertical: 'middle' };
+                if (itemIdx % 2 === 1) {
+                    [1, 2, 3, 4, 6].forEach(c => {
+                        row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
                     });
-                });
+                }
 
-                sheet.autoFilter = { from: { row: headerRowIndex, column: 1 }, to: { row: headerRowIndex, column: headers.length } };
-                sheet.views = [{ state: 'frozen', ySplit: headerRowIndex }];
-
-
-                // ========================================================
-                // HOJA 2: DETALLE DE CHECKLIST SST (12 PUNTOS DE CONTROL)
-                // ========================================================
-                const sheetChecklist = workbook.addWorksheet('Detalle Checklist SST', {
-                    pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
-                });
-
-                sheetChecklist.columns = [
-                    { width: 15 }, // Fecha
-                    { width: 14 }, // ID Extintor
-                    { width: 22 }, // Ubicación
-                    { width: 32 }, // Elemento Verificado
-                    { width: 16 }, // Resultado (Cumple/No Cumple)
-                    { width: 45 }  // Observación Individual
-                ];
-
-                const logoIdCheck = workbook.addImage({ base64: COMPANY_LOGO_BASE64, extension: 'png' });
-                sheetChecklist.addImage(logoIdCheck, { tl: { col: 0.1, row: 0.1 }, ext: { width: 65, height: 65 } });
-
-                sheetChecklist.mergeCells('C1:F3');
-                const titleCheck = sheetChecklist.getCell('C1');
-                titleCheck.value = `DETALLE DE LISTA DE CHEQUEO (12 PUNTOS SST)\n${COMPANY_NAME.toUpperCase()}`;
-                titleCheck.font = { size: 14, bold: true, color: { argb: 'FF1B5E20' } };
-                titleCheck.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-
-                const checkHeaderRowIdx = 5;
-                const checkHeaders = ["Fecha", "ID Extintor", "Ubicación", "Elemento Verificado", "Resultado", "Observación Detallada"];
-                const checkHeaderRow = sheetChecklist.getRow(checkHeaderRowIdx);
-                checkHeaders.forEach((h, i) => { checkHeaderRow.getCell(i + 1).value = h; });
-                checkHeaderRow.eachCell(cell => {
-                    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                    cell.fill = headerFill;
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                row.eachCell(cell => {
                     cell.border = thinGrayBorder;
+                    cell.alignment = { vertical: 'middle', horizontal: cell.col === 5 ? 'center' : 'left' };
                 });
-                checkHeaderRow.height = 26;
+                currentCheckRow++;
+            }
+        });
+        sheetChecklist.views = [{ state: 'frozen', ySplit: checkHeaderRowIdx }];
 
-                let currentCheckRow = checkHeaderRowIdx + 1;
-                currentInspections.forEach((item, itemIdx) => {
-                    const checklistEntries = item.checklist || {};
-                    for (const [elementName, val] of Object.entries(checklistEntries)) {
-                        const row = sheetChecklist.getRow(currentCheckRow);
-                        row.getCell(1).value = item.lastInspection || '';
-                        row.getCell(2).value = item.id || '';
-                        row.getCell(3).value = item.location || '';
-                        row.getCell(4).value = elementName;
-                        row.getCell(5).value = val.result || '';
-                        row.getCell(6).value = val.obs || '';
+        // ========================================================
+        // HOJA 3: EVIDENCIAS FOTOGRÁFICAS Y FIRMAS
+        // ========================================================
+        const sheet2 = workbook.addWorksheet('Evidencias Fotográficas', {
+            pageSetup: { paperSize: 9, orientation: 'landscape' }
+        });
 
-                        // Colorear resultado (Verde si cumple, Rojo si no cumple)
-                        const resVal = val.result || 'Cumple';
-                        let resColor = 'FFC8E6C9'; // Verde claro
-                        let fontColor = 'FF1B5E20';
-                        if (resVal === 'No Cumple') {
-                            resColor = 'FFFFCDD2'; // Rojo claro
-                            fontColor = 'FFC62828';
-                        } else if (resVal === 'N/A') {
-                            resColor = 'FFE0E0E0'; // Gris
-                            fontColor = 'FF666666';
-                        }
+        const logoId2 = workbook.addImage({ base64: COMPANY_LOGO_BASE64, extension: 'png' });
+        sheet2.addImage(logoId2, { tl: { col: 0.1, row: 0.1 }, ext: { width: 70, height: 70 } });
 
-                        row.getCell(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: resColor } };
-                        row.getCell(5).font = { bold: true, color: { argb: fontColor } };
-                        row.getCell(5).alignment = { horizontal: 'center' };
+        sheet2.mergeCells('C1:J2');
+        const t2 = sheet2.getCell('C1');
+        t2.value = `${COMPANY_NAME.toUpperCase()} — EVIDENCIAS FOTOGRÁFICAS Y FIRMAS DE INSPECCIÓN`;
+        t2.font = { size: 14, bold: true, color: { argb: 'FF1B5E20' } };
+        t2.alignment = { vertical: 'middle' };
 
-                        if (itemIdx % 2 === 1) {
-                            row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
-                            row.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
-                            row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
-                            row.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
-                            row.getCell(6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
-                        }
+        sheet2.columns = Array(10).fill(0).map(() => ({ width: 16 }));
 
-                        row.eachCell(cell => {
-                            cell.border = thinGrayBorder;
-                            cell.alignment = { vertical: 'middle', horizontal: cell.col === 5 ? 'center' : 'left' };
-                        });
-                        currentCheckRow++;
-                    }
-                });
-                sheetChecklist.views = [{ state: 'frozen', ySplit: checkHeaderRowIdx }];
+        let currentRow = 5;
+        const PHOTOS_PER_ROW = 6;
 
+        currentInspections.forEach(item => {
+            sheet2.mergeCells(`A${currentRow}:J${currentRow}`);
+            const headerCell = sheet2.getCell(`A${currentRow}`);
+            headerCell.value = `${item.id || 'S/N'}  —  ${item.location || ''}   |   Inspector: ${item.inspector || 'N/A'}   |   Fecha: ${item.lastInspection || 'N/A'}   |   Estado: ${item.status || 'N/A'}`;
+            headerCell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E7D32' } };
+            headerCell.alignment = { vertical: 'middle' };
+            sheet2.getRow(currentRow).height = 20;
+            currentRow += 2;
 
-                // ========================================================
-                // HOJA 3: EVIDENCIAS FOTOGRÁFICAS Y FIRMAS
-                // ========================================================
-                const sheet2 = workbook.addWorksheet('Evidencias Fotográficas', {
-                    pageSetup: { paperSize: 9, orientation: 'landscape' }
-                });
+            const photos = item.photos || [];
+            if (photos.length === 0 && !item.signature) {
+                sheet2.getCell(`A${currentRow}`).value = 'Sin evidencias fotográficas ni firma registrada.';
+                sheet2.getCell(`A${currentRow}`).font = { italic: true, color: { argb: 'FF999999' } };
+                currentRow += 3;
+                return;
+            }
 
-                const logoId2 = workbook.addImage({ base64: COMPANY_LOGO_BASE64, extension: 'png' });
-                sheet2.addImage(logoId2, { tl: { col: 0.1, row: 0.1 }, ext: { width: 70, height: 70 } });
+            if (photos.length > 0) {
+                sheet2.getCell(`A${currentRow}`).value = 'Fotos:';
+                sheet2.getCell(`A${currentRow}`).font = { bold: true };
 
-                sheet2.mergeCells('C1:J2');
-                const t2 = sheet2.getCell('C1');
-                t2.value = `${COMPANY_NAME.toUpperCase()} — EVIDENCIAS FOTOGRÁFICAS Y FIRMAS DE INSPECCIÓN`;
-                t2.font = { size: 14, bold: true, color: { argb: 'FF1B5E20' } };
-                t2.alignment = { vertical: 'middle' };
+                let photoCol = 1;
+                let photoRow = currentRow;
+                sheet2.getRow(photoRow).height = 90;
 
-                sheet2.columns = Array(10).fill(0).map(() => ({ width: 16 }));
-
-                let currentRow = 5;
-                const PHOTOS_PER_ROW = 6;
-
-                currentInspections.forEach(item => {
-                    sheet2.mergeCells(`A${currentRow}:J${currentRow}`);
-                    const headerCell = sheet2.getCell(`A${currentRow}`);
-                    headerCell.value = `${item.id || 'S/N'}  —  ${item.location || ''}   |   Inspector: ${item.inspector || 'N/A'}   |   Fecha: ${item.lastInspection || 'N/A'}   |   Estado: ${item.status || 'N/A'}`;
-                    headerCell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                    headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E7D32' } };
-                    headerCell.alignment = { vertical: 'middle' };
-                    sheet2.getRow(currentRow).height = 20;
-                    currentRow += 2;
-
-                    const photos = item.photos || [];
-                    if (photos.length === 0 && !item.signature) {
-                        sheet2.getCell(`A${currentRow}`).value = 'Sin evidencias fotográficas ni firma registrada.';
-                        sheet2.getCell(`A${currentRow}`).font = { italic: true, color: { argb: 'FF999999' } };
-                        currentRow += 3;
-                        return;
-                    }
-
-                    if (photos.length > 0) {
-                        sheet2.getCell(`A${currentRow}`).value = 'Fotos:';
-                        sheet2.getCell(`A${currentRow}`).font = { bold: true };
-
-                        let photoCol = 1;
-                        let photoRow = currentRow;
+                photos.forEach((p, i) => {
+                    if (i > 0 && i % PHOTOS_PER_ROW === 0) {
+                        photoRow += 7;
+                        photoCol = 1;
                         sheet2.getRow(photoRow).height = 90;
-
-                        photos.forEach((p, i) => {
-                            if (i > 0 && i % PHOTOS_PER_ROW === 0) {
-                                photoRow += 7;
-                                photoCol = 1;
-                                sheet2.getRow(photoRow).height = 90;
-                            }
-                            const imgData = dataUrlToBase64Image(p);
-                            if (imgData) {
-                                const imgId = workbook.addImage({ base64: imgData.base64, extension: imgData.extension });
-                                sheet2.addImage(imgId, { tl: { col: photoCol, row: photoRow - 1 }, ext: { width: 105, height: 105 } });
-                            }
-                            photoCol += 1;
-                        });
-                        currentRow = photoRow + 7;
                     }
-
-                    if (item.signature) {
-                        sheet2.getCell(`A${currentRow}`).value = 'Firma del Inspector:';
-                        sheet2.getCell(`A${currentRow}`).font = { bold: true };
-                        sheet2.getRow(currentRow).height = 60;
-                        const sigData = dataUrlToBase64Image(item.signature);
-                        if (sigData) {
-                            const sigId = workbook.addImage({ base64: sigData.base64, extension: sigData.extension });
-                            sheet2.addImage(sigId, { tl: { col: 1, row: currentRow - 1 }, ext: { width: 150, height: 65 } });
-                        }
-                        currentRow += 5;
+                    const imgData = dataUrlToBase64Image(p);
+                    if (imgData) {
+                        const imgId = workbook.addImage({ base64: imgData.base64, extension: imgData.extension });
+                        sheet2.addImage(imgId, { tl: { col: photoCol, row: photoRow - 1 }, ext: { width: 105, height: 105 } });
                     }
-                    currentRow += 2;
+                    photoCol += 1;
                 });
+                currentRow = photoRow + 7;
+            }
 
-                // Descargar el archivo Excel (.xlsx) final
+            if (item.signature) {
+                sheet2.getCell(`A${currentRow}`).value = 'Firma del Inspector:';
+                sheet2.getCell(`A${currentRow}`).font = { bold: true };
+                sheet2.getRow(currentRow).height = 60;
+                const sigData = dataUrlToBase64Image(item.signature);
+                if (sigData) {
+                    const sigId = workbook.addImage({ base64: sigData.base64, extension: sigData.extension });
+                    sheet2.addImage(sigId, { tl: { col: 1, row: currentRow - 1 }, ext: { width: 150, height: 65 } });
+                }
+                currentRow += 5;
+            }
+            currentRow += 2;
+        });
+
+        // Descargar el archivo Excel (.xlsx) final
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         saveAs(blob, `Reporte_Extintores_FalconFarms_${new Date().toISOString().split('T')[0]}.xlsx`);
