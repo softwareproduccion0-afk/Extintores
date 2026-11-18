@@ -568,54 +568,50 @@
         }
 
         function renderChecklistTable() {
-    const tbody = document.getElementById('checklist-tbody');
-    tbody.innerHTML = '';
-    checklistItems.forEach((item) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="fw-bold text-dark">${item}</td>
-            <td>
-                <select class="form-select form-select-sm check-result" data-item="${item}">
-                    <option value="Cumple" selected>Cumple</option>
-                    <option value="No Cumple">No Cumple</option>
-                    <option value="N/A">N/A</option>
-                </select>
-            </td>
-            <td>
-                <input type="text" class="form-control form-control-sm check-obs" data-item="${item}" placeholder="Observación detallada...">
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}function autoFillExtinguisherData() {
-    const codeId = document.getElementById('ext-id').value.trim();
-    const masterInfo = masterExtinguishers.find(e => e.id === codeId);
-    
-    if (masterInfo) {
-        document.getElementById('ext-location').value = masterInfo.ubicacion;
-        document.getElementById('ext-type').value = masterInfo.tipo || "ABC";
-        document.getElementById('ext-subtype').value = masterInfo.sub || "Multi";
-        document.getElementById('ext-capacity').value = masterInfo.cap || "20 lb";
-        document.getElementById('ext-height').value = masterInfo.alt || "1.5 m";
-        document.getElementById('ext-venc-ano').value = masterInfo.ano || "2025";
-        document.getElementById('ext-venc-mes').value = masterInfo.mes || "AGO";
-    }
-
-    const existingInspection = inspections.find(i => i.id === codeId);
-    if (existingInspection) {
-        document.getElementById('ext-status').value = existingInspection.status;
-        document.getElementById('ext-expiry').value = existingInspection.expiryDate || '';
-        if(existingInspection.inspector) {
-            document.getElementById('ext-inspector').value = existingInspection.inspector;
+            const tbody = document.getElementById('checklist-tbody');
+            tbody.innerHTML = '';
+            checklistItems.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="fw-bold text-dark">${item}</td>
+                    <td>
+                        <select class="form-select form-select-sm check-result" data-item="${item}">
+                            <option value="Cumple" selected>Cumple</option>
+                            <option value="No Cumple">No Cumple</option>
+                            <option value="N/A">N/A</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="text" class="form-control form-control-sm check-obs" data-item="${item}" placeholder="Observación detallada...">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
-        // Recuperar fotos previas si se edita el registro
-        currentPhotos = existingInspection.photos ? [...existingInspection.photos] : [];
-        renderPhotoPreviews();
-    } else {
-        currentPhotos = [];
-        renderPhotoPreviews();
-    }
-}
+
+        function autoFillExtinguisherData() {
+            const codeId = document.getElementById('ext-id').value.trim();
+            const masterInfo = masterExtinguishers.find(e => e.id === codeId);
+            
+            if (masterInfo) {
+                document.getElementById('ext-location').value = masterInfo.ubicacion;
+                document.getElementById('ext-type').value = masterInfo.tipo || "ABC";
+                document.getElementById('ext-subtype').value = masterInfo.sub || "Multi";
+                document.getElementById('ext-capacity').value = masterInfo.cap || "20 lb";
+                document.getElementById('ext-height').value = masterInfo.alt || "1.5 m";
+                document.getElementById('ext-venc-ano').value = masterInfo.ano || "2025";
+                document.getElementById('ext-venc-mes').value = masterInfo.mes || "AGO";
+            }
+
+            const existingInspection = inspections.find(i => i.id === codeId);
+            if (existingInspection) {
+                document.getElementById('ext-status').value = existingInspection.status;
+                document.getElementById('ext-expiry').value = existingInspection.expiryDate || '2027-05-15';
+                if(existingInspection.inspector) {
+                    document.getElementById('ext-inspector').value = existingInspection.inspector;
+                }
+            }
+        }
 
         function checkUrlParams() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -687,85 +683,29 @@
         }
 
        function saveInspection(e) {
-    e.preventDefault();
-    const extId = document.getElementById('ext-id').value.trim();
-    const location = document.getElementById('ext-location').value.trim();
-    const type = document.getElementById('ext-type').value;
-    const sub = document.getElementById('ext-subtype').value;
-    const capacity = document.getElementById('ext-capacity').value;
-    const height = document.getElementById('ext-height').value;
-    const vencMes = document.getElementById('ext-venc-mes').value;
-    const vencAno = document.getElementById('ext-venc-ano').value;
-    const status = document.getElementById('ext-status').value;
-    const expiry = document.getElementById('ext-expiry').value;
-    const inspector = document.getElementById('ext-inspector').value;
+            e.preventDefault();
+            const extId = document.getElementById('ext-id').value.trim();
+            const location = document.getElementById('ext-location').value.trim();
+            const type = document.getElementById('ext-type').value;
+            const sub = document.getElementById('ext-subtype').value;
+            const capacity = document.getElementById('ext-capacity').value;
+            const height = document.getElementById('ext-height').value;
+            const vencMes = document.getElementById('ext-venc-mes').value;
+            const vencAno = document.getElementById('ext-venc-ano').value;
+            const status = document.getElementById('ext-status').value;
+            const expiry = document.getElementById('ext-expiry').value;
+            const inspector = document.getElementById('ext-inspector').value;
 
-    // Captura correcta del checklist de 12 puntos y sus observaciones
-    const checklistData = {};
-    checklistItems.forEach(item => {
-        const selectEl = document.querySelector(`.check-result[data-item="${item}"]`);
-        const inputEl = document.querySelector(`.check-obs[data-item="${item}"]`);
-        
-        checklistData[item] = {
-            result: selectEl ? selectEl.value : 'Cumple',
-            obs: inputEl && inputEl.value.trim() !== '' ? inputEl.value.trim() : 'Sin observaciones'
-        };
-    });
-
-    // Captura de firma digital validando que no esté vacía
-    let signatureData = null;
-    if (signaturePad && !signaturePad.isEmpty()) {
-        signatureData = signaturePad.toDataURL('image/png');
-    }
-
-    const newRecord = {
-        id: extId, 
-        location, 
-        type, 
-        sub, 
-        capacity, 
-        height, 
-        vencMes, 
-        vencAno, 
-        status, 
-        expiryDate: expiry,
-        lastInspection: new Date().toISOString().split('T')[0], 
-        inspector,
-        checklist: checklistData, 
-        photos: [...currentPhotos], // Clona correctamente el array de fotos actuales
-        signature: signatureData
-    };
-
-    // 1. Guardar localmente
-    const index = inspections.findIndex(i => i.id === extId);
-    if (index >= 0) { 
-        inspections[index] = newRecord; 
-    } else { 
-        inspections.unshift(newRecord); 
-    }
-    saveStorage();
-
-    // 2. Enviar a la nube (Google Apps Script)
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzdFna7hLB0P_avjZpLZztp51V7Elv2tn6kk-w03ND-3-fogy8qM4bdpspqdfpqT13y/exec";
-    
-    fetch(WEB_APP_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newRecord)
-    })
-    .finally(() => {
-        alert(`¡Éxito! La inspección del extintor ${extId} ha quedado guardada correctamente.`);
-        
-        // Resetear formulario y estados visuales
-        document.getElementById('form-extinguisher').reset();
-        currentPhotos = [];
-        renderPhotoPreviews();
-        if (signaturePad) signaturePad.clear();
-        renderChecklistTable();
-        showSection('dashboard');
-    });
-}
+            const checklistData = {};
+            checklistItems.forEach(item => {
+                const selectEl = document.querySelector(`.check-result[data-item="${item}"]`);
+                const inputEl = document.querySelector(`.check-obs[data-item="${item}"]`);
+                
+                checklistData[item] = {
+                    result: selectEl ? selectEl.value : 'Cumple',
+                    obs: inputEl && inputEl.value.trim() !== '' ? inputEl.value.trim() : 'Sin observaciones'
+                };
+            });
 
             const newRecord = {
                 id: extId, location, type, sub, capacity, height, vencMes, vencAno, status, expiryDate: expiry,
@@ -803,7 +743,7 @@
                 clearSignature();
                 showSection('dashboard');
             });
-        
+        }
         function openQRModal() {
             const modal = new bootstrap.Modal(document.getElementById('qrModal'));
             modal.show();
